@@ -6,34 +6,35 @@
 #   Apache/mod_perl handler for the Template Toolkit.
 #
 # AUTHOR
-#   Andy Wardley <abw@kfs.org>
+#   Andy Wardley <abw@wardley.org>
 #
 # COPYRIGHT
-#   Copyright (C) 1996-2001 Andy Wardley.  All Rights Reserved.
-#   Copyright (C) 1998-2001 Canon Research Centre Europe Ltd.
+#   Copyright (C) 1996-2003 Andy Wardley.  All Rights Reserved.
+#   Copyright (C) 1998-2002 Canon Research Centre Europe Ltd.
 #
 #   This module is free software; you can redistribute it and/or
 #   modify it under the same terms as Perl itself.
 #
 # REVISION
-#   $Id: Template.pm,v 1.3 2002/01/22 11:02:26 abw Exp $
+#   $Id: Template.pm,v 1.4 2002/03/12 14:10:25 abw Exp $
 #
 #========================================================================
 
 package Apache::Template;
 
 use strict;
-use vars qw( $VERSION $DEBUG $ERROR $SERVICE $SERVICE_MODULE );
+use vars qw( $VERSION $DEBUG $ERROR $SERVICE );
 
 use DynaLoader ();
 use Apache::ModuleConfig ();
 use Apache::Constants qw( :common );
 use Template::Service::Apache;
+use Template::Config;
 
-$VERSION = '0.06';
+$VERSION = '0.08';
 $ERROR   = '';
 $DEBUG   = 0 unless defined $DEBUG;
-$SERVICE_MODULE = 'Template::Service::Apache' unless defined $SERVICE_MODULE;
+$Template::Config::SERVICE = 'Template::Service::Apache';
 
 if ($ENV{ MOD_PERL }) {
     no strict;
@@ -46,51 +47,47 @@ if ($ENV{ MOD_PERL }) {
 # handler($request)
 #
 # Main Apache/mod_perl content handler which delegates to an
-# underlying Template::Service::Apache object.  This is created and 
-# stored in the $SERVICE package variable and then reused across
-# requests.  This allows compiled templates to be cached and re-used
-# without requiring re-compilation.  The service implements 4 methods 
-# for different phases of the request:
+# underlying Template::Service::Apache object.  A service is created that
+# is unique to the hostname (e.g. to support multiple configurations for 
+# virtual hosts).  This is created and stored in the $SERVICE hash and 
+# then reused across requests to the same hostname.  This allows compiled 
+# templates to be cached and re-used without requiring re-compilation.  
+# The service implements 4 methods for different phases of the request:
 #
-#   template($request)		  # fetch a compiled template
-#   params($request)		  # build parameter set (template vars)
-#   process($template, $params)	  # process template
+#   template($request)            # fetch a compiled template
+#   params($request)              # build parameter set (template vars)
+#   process($template, $params)   # process template
 #   headers($request, $template, \$content)
-#				  # set and send http headers
+#                                 # set and send http headers
 #------------------------------------------------------------------------
 
 sub handler {
     my $r = shift;
 
-    $SERVICE ||= do {
-	my $cfg = Apache::ModuleConfig->get($r) || { };
-
-	# hack to work around minor bug in Template::Parser from 
-	# TT v 2.00 which doesn't recognise a blessed hash as
-	# being valid configuration params.  Fixed in TT 2.01.
-	$cfg = { %$cfg };
-
-	# instantiate new service module
-	my $module = $cfg->{ SERVICE_MODULE } || $SERVICE_MODULE;
-	(eval "require $module" && $module->new($cfg)) || do {
-	    $r->log_reason($module->error(), $r->filename());
-	    return SERVER_ERROR;
-	};
+    # create and cache a service for each hostname
+    my $service = $SERVICE->{ $r->hostname() } ||= do {
+        my $cfg = Apache::ModuleConfig->get($r) || { };
+#        warn "setup service for hostname: ", $r->hostname, "  ($cfg):\n", 
+#             dump_hash($cfg), "\n";
+        Template::Config->service($cfg) || do {
+            $r->log_reason(Template::Config->error(), $r->filename());
+            return SERVER_ERROR;
+        };
     };
 
-    my $template = $SERVICE->template($r);
+    my $template = $service->template($r);
     return $template unless ref $template;
 
-    my $params = $SERVICE->params($r);
+    my $params = $service->params($r);
     return $params unless ref $params;
 
-    my $content = $SERVICE->process($template, $params);
+    my $content = $service->process($template, $params);
     unless (defined $content) {
-	$r->log_reason($SERVICE->error(), $r->filename());
-	return SERVER_ERROR;
+        $r->log_reason($service->error(), $r->filename());
+        return SERVER_ERROR;
     }
 
-    $SERVICE->headers($r, $template, \$content);
+    $service->headers($r, $template, \$content);
 
     $r->print($content);
 
@@ -103,23 +100,23 @@ sub handler {
 #========================================================================
 
 #------------------------------------------------------------------------
-# TT2Tags html			# specify TAG_STYLE
-# TT2Tags [* *]			# specify START_TAG and END_TAG
+# TT2Tags html          # specify TAG_STYLE
+# TT2Tags [* *]         # specify START_TAG and END_TAG
 #------------------------------------------------------------------------
 
 sub TT2Tags($$$$) {
     my ($cfg, $parms, $start, $end) = @_;
     if (defined $end and length $end) {
-	$cfg->{ START_TAG } = quotemeta($start);
-	$cfg->{ END_TAG   } = quotemeta($end);
+        $cfg->{ START_TAG } = quotemeta($start);
+        $cfg->{ END_TAG   } = quotemeta($end);
     }
     else {
-	$cfg->{ TAG_STYLE } = $start;
+        $cfg->{ TAG_STYLE } = $start;
     }
 }
 
 #------------------------------------------------------------------------
-# TT2PreChomp On		# enable PRE_CHOMP
+# TT2PreChomp On        # enable PRE_CHOMP
 #------------------------------------------------------------------------
 
 sub TT2PreChomp($$$) {
@@ -128,7 +125,7 @@ sub TT2PreChomp($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2PostChomp On		# enable POST_CHOMP
+# TT2PostChomp On       # enable POST_CHOMP
 #------------------------------------------------------------------------
 
 sub TT2PostChomp($$$) {
@@ -137,7 +134,7 @@ sub TT2PostChomp($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Trim On			# enable TRIM
+# TT2Trim On            # enable TRIM
 #------------------------------------------------------------------------
 
 sub TT2Trim($$$) {
@@ -146,7 +143,7 @@ sub TT2Trim($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2AnyCase On			# enable ANYCASE
+# TT2AnyCase On         # enable ANYCASE
 #------------------------------------------------------------------------
 
 sub TT2AnyCase($$$) {
@@ -155,7 +152,7 @@ sub TT2AnyCase($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Interpolate On		# enable INTERPOLATE
+# TT2Interpolate On     # enable INTERPOLATE
 #------------------------------------------------------------------------
 
 sub TT2Interpolate($$$) {
@@ -164,8 +161,17 @@ sub TT2Interpolate($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2IncludePath /here /there	# define INCLUDE_PATH directories
-# TT2IncludePath /elsewhere	# additional INCLUDE_PATH directories
+# TT2Tolerant On        # enable TOLERANT
+#------------------------------------------------------------------------
+
+sub TT2Tolerant($$$) {
+    my ($cfg, $parms, $on) = @_;
+    $cfg->{ TOLERANT } = $on;
+}
+
+#------------------------------------------------------------------------
+# TT2IncludePath /here /there   # define INCLUDE_PATH directories
+# TT2IncludePath /elsewhere     # additional INCLUDE_PATH directories
 #------------------------------------------------------------------------
 
 sub TT2IncludePath($$@) {
@@ -175,7 +181,7 @@ sub TT2IncludePath($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2Absolute On		# enable ABSOLUTE file paths
+# TT2Absolute On        # enable ABSOLUTE file paths
 #------------------------------------------------------------------------
 
 sub TT2Absolute($$$) {
@@ -184,7 +190,7 @@ sub TT2Absolute($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Relative On		# enable RELATIVE file paths
+# TT2Relative On        # enable RELATIVE file paths
 #------------------------------------------------------------------------
 
 sub TT2Relative($$$) {
@@ -193,7 +199,7 @@ sub TT2Relative($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Delimiter ,		# set alternate directory delimiter
+# TT2Delimiter ,        # set alternate directory delimiter
 #------------------------------------------------------------------------
 
 sub TT2Delimiter($$$) {
@@ -202,8 +208,8 @@ sub TT2Delimiter($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2PreProcess config header	# define PRE_PROCESS templates
-# TT2PreProcess menu		# additional PRE_PROCESS templates
+# TT2PreProcess config header   # define PRE_PROCESS templates
+# TT2PreProcess menu            # additional PRE_PROCESS templates
 #------------------------------------------------------------------------
 
 sub TT2PreProcess($$@) {
@@ -213,8 +219,8 @@ sub TT2PreProcess($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2Process main1 main2	# define PROCESS templates
-# TT2Process main3		# additional PROCESS template
+# TT2Process main1 main2    # define PROCESS templates
+# TT2Process main3          # additional PROCESS template
 #------------------------------------------------------------------------
 
 sub TT2Process($$@) {
@@ -224,8 +230,19 @@ sub TT2Process($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2PostProcess menu copyright	# define POST_PROCESS templates
-# TT2PostProcess footer		# additional POST_PROCESS templates
+# TT2Wrapper main1 main2    # define WRAPPER templates
+# TT2Wrapper main3          # additional WRAPPER template
+#------------------------------------------------------------------------
+
+sub TT2Wrapper($$@) {
+    my ($cfg, $parms, $file) = @_;
+    my $wrapper = $cfg->{ WRAPPER } ||= [ ];
+    push(@$wrapper, $file);
+}
+
+#------------------------------------------------------------------------
+# TT2PostProcess menu copyright # define POST_PROCESS templates
+# TT2PostProcess footer         # additional POST_PROCESS templates
 #------------------------------------------------------------------------
 
 sub TT2PostProcess($$@) {
@@ -235,7 +252,7 @@ sub TT2PostProcess($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2Default notfound		# define DEFAULT template
+# TT2Default notfound       # define DEFAULT template
 #------------------------------------------------------------------------
 
 sub TT2Default($$$) {
@@ -244,7 +261,7 @@ sub TT2Default($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Error error		# define ERROR template
+# TT2Error error        # define ERROR template
 #------------------------------------------------------------------------
 
 sub TT2Error($$$) {
@@ -253,7 +270,7 @@ sub TT2Error($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2EvalPerl On		# enable EVAL_PERL
+# TT2EvalPerl On        # enable EVAL_PERL
 #------------------------------------------------------------------------
 
 sub TT2EvalPerl($$$) {
@@ -262,7 +279,7 @@ sub TT2EvalPerl($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2LoadPerl On		# enable LOAD_PERL
+# TT2LoadPerl On        # enable LOAD_PERL
 #------------------------------------------------------------------------
 
 sub TT2LoadPerl($$$) {
@@ -271,7 +288,7 @@ sub TT2LoadPerl($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Recursion On		# enable RECURSION
+# TT2Recursion On       # enable RECURSION
 #------------------------------------------------------------------------
 
 sub TT2Recursion($$$) {
@@ -280,8 +297,8 @@ sub TT2Recursion($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2PluginBase My::Plugins 	# define PLUGIN_BASE package(s)
-# TT2PluginBase Your::Plugin	# additional PLUGIN_BASE package(s)
+# TT2PluginBase My::Plugins     # define PLUGIN_BASE package(s)
+# TT2PluginBase Your::Plugin    # additional PLUGIN_BASE package(s)
 #------------------------------------------------------------------------
 
 sub TT2PluginBase($$@) {
@@ -291,7 +308,7 @@ sub TT2PluginBase($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2AutoReset Off		# disable AUTO_RESET
+# TT2AutoReset Off      # disable AUTO_RESET
 #------------------------------------------------------------------------
 
 sub TT2AutoReset($$$) {
@@ -300,7 +317,7 @@ sub TT2AutoReset($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2CacheSize 128		# define CACHE_SIZE
+# TT2CacheSize 128      # define CACHE_SIZE
 #------------------------------------------------------------------------
 
 sub TT2CacheSize($$$) {
@@ -309,7 +326,7 @@ sub TT2CacheSize($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2CompileExt .tt2		# define COMPILE_EXT
+# TT2CompileExt .tt2        # define COMPILE_EXT
 #------------------------------------------------------------------------
 
 sub TT2CompileExt($$$) {
@@ -318,7 +335,7 @@ sub TT2CompileExt($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2CompileDir /var/tt2/cache	# define COMPILE_DIR
+# TT2CompileDir /var/tt2/cache  # define COMPILE_DIR
 #------------------------------------------------------------------------
 
 sub TT2CompileDir($$$) {
@@ -327,7 +344,7 @@ sub TT2CompileDir($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Debug On			# enable DEBUG
+# TT2Debug On           # enable DEBUG
 #------------------------------------------------------------------------
 
 sub TT2Debug($$$) {
@@ -336,7 +353,7 @@ sub TT2Debug($$$) {
 }
 
 #------------------------------------------------------------------------
-# TT2Headers length etag	    # add certain HTTP headers
+# TT2Headers length etag        # add certain HTTP headers
 #------------------------------------------------------------------------
 
 sub TT2Headers($$@) {
@@ -346,7 +363,7 @@ sub TT2Headers($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2Params uri env pnotes uploads   # define parameters as template vars
+# TT2Params uri env pnotes uploads request            # add template vars
 #------------------------------------------------------------------------
 
 sub TT2Params($$@) {
@@ -356,12 +373,40 @@ sub TT2Params($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2ServiceModule   My::Service::Class	    # custom service module
+# TT2ServiceModule   My::Service::Class     # custom service module
 #------------------------------------------------------------------------
 
 sub TT2ServiceModule($$$) {
     my ($cfg, $parms, $module) = @_;
-    $cfg->{ SERVICE_MODULE } = $module;
+    $Template::Config::SERVICE = $module;
+}
+
+#------------------------------------------------------------------------
+# TT2Variable name value       # define template variable
+#------------------------------------------------------------------------
+
+sub TT2Variable($$$$) {
+    my ($cfg, $parms, $name, $value) = @_;
+    $cfg->{ VARIABLES }->{ $name } = $value;
+}
+
+#------------------------------------------------------------------------
+# TT2Constant   foo  bar
+#------------------------------------------------------------------------
+
+sub TT2Constant($$@@) {
+    my ($cfg, $parms, $name, $value) = @_;
+    my $constants = $cfg->{ CONSTANTS } ||= { };
+    $constants->{ $name } = $value;
+}
+
+#------------------------------------------------------------------------
+# TT2ConstantsNamespace const
+#------------------------------------------------------------------------
+
+sub TT2ConstantsNamespace($$$) {
+    my ($cfg, $parms, $namespace) = @_;
+    $cfg->{ CONSTANTS_NAMESPACE } = $namespace;
 }
 
 
@@ -370,8 +415,8 @@ sub TT2ServiceModule($$$) {
 # Configuration creators/mergers
 #========================================================================
 
-my $dir_counter = 1;	    # used for debugging/testing of problems
-my $srv_counter = 1;	    # with SERVER_MERGE and DIR_MERGE
+my $dir_counter = 1;        # used for debugging/testing of problems
+my $srv_counter = 1;        # with SERVER_MERGE and DIR_MERGE
 
 sub SERVER_CREATE {
     my $class  = shift;
@@ -380,21 +425,16 @@ sub SERVER_CREATE {
     return $config;
 }
 
-#
-# This should be SERVER_MERGE, not SERVER_MERGER, but the last time
-# I checked, it didn't work anyway, so I suspect it's a moot point
-#    -- abw Jan 2002
-#
-sub SERVER_MERGER {
+sub SERVER_MERGE {
     my ($parent, $config) = @_;
     my $merged = _merge($parent, $config);
     
     if ($DEBUG) {
-	$merged->{ counter } = $srv_counter;
-	warn "\nSERVER_MERGE #" . $srv_counter++ . "\n" 
-	    . "$parent\n" . dump_hash($parent) . "\n+\n"
-	    . "$config\n" . dump_hash($config) . "\n=\n"
-	    . "$merged\n" . dump_hash($merged) . "\n";
+        $merged->{ counter } = $srv_counter;
+        warn "\nSERVER_MERGE #" . $srv_counter++ . "\n" 
+            . "$parent\n" . dump_hash($parent) . "\n+\n"
+            . "$config\n" . dump_hash($config) . "\n=\n"
+            . "$merged\n" . dump_hash($merged) . "\n";
     }
     return $merged;
 }
@@ -410,11 +450,11 @@ sub DIR_MERGE {
     my ($parent, $config) = @_;
     my $merged = _merge($parent, $config);
     if ($DEBUG) {
-	$merged->{ counter } = $dir_counter;
-	warn "\nDIR_MERGE #" . $dir_counter++ . "\n" 
-	    . "$parent\n" . dump_hash($parent) . "\n+\n"
-	    . "$config\n" . dump_hash($config) . "\n=\n"
-	    . "$merged\n" . dump_hash($merged) . "\n";
+        $merged->{ counter } = $dir_counter;
+        warn "\nDIR_MERGE #" . $dir_counter++ . "\n" 
+            . "$parent\n" . dump_hash($parent) . "\n+\n"
+            . "$config\n" . dump_hash($config) . "\n=\n"
+            . "$merged\n" . dump_hash($merged) . "\n";
     }
     return $merged;
 }
@@ -430,33 +470,33 @@ sub _merge {
     my $merged = bless { }, ref($parent);
   
     foreach my $key (keys %$parent) {
-	if(!ref $parent->{$key}) {
-	    $merged->{$key} = $parent->{$key};
-	} 
-	elsif (ref $parent->{$key} eq 'ARRAY') {
-	    $merged->{$key} = [ @{$parent->{$key}} ];
-	} 
-	elsif (ref $parent->{$key} eq 'HASH') {
-	    $merged->{$key} = { %{$parent->{$key}} };
-	} 
-	elsif (ref $parent->{$key} eq 'SCALAR') {
-	    $merged->{$key} = \${$parent->{$key}};
-	}
+        if(!ref $parent->{$key}) {
+            $merged->{$key} = $parent->{$key};
+        } 
+        elsif (ref $parent->{$key} eq 'ARRAY') {
+            $merged->{$key} = [ @{$parent->{$key}} ];
+        } 
+        elsif (ref $parent->{$key} eq 'HASH') {
+            $merged->{$key} = { %{$parent->{$key}} };
+        } 
+        elsif (ref $parent->{$key} eq 'SCALAR') {
+            $merged->{$key} = \${$parent->{$key}};
+        }
     }
     
     foreach my $key (keys %$config) {
-	if(!ref $config->{$key}) {
-	    $merged->{$key} = $config->{$key};
-	} 
-	elsif (ref $config->{$key} eq 'ARRAY') {
-	    push @{$merged->{$key} ||= []}, @{$config->{$key}};
-	} 
-	elsif (ref $config->{$key} eq 'HASH') {
-	    $merged->{$key} = { %{$merged->{$key}}, %{$config->{$key}} };
-	} 
-	elsif (ref $config->{$key} eq 'SCALAR') {
-	    $merged->{$key} = \${$config->{$key}};
-	}
+        if(!ref $config->{$key}) {
+            $merged->{$key} = $config->{$key};
+        } 
+        elsif (ref $config->{$key} eq 'ARRAY') {
+            push @{$merged->{$key} ||= []}, @{$config->{$key}};
+        } 
+        elsif (ref $config->{$key} eq 'HASH') {
+            $merged->{$key} = { %{$merged->{$key}}, %{$config->{$key}} };
+        } 
+        elsif (ref $config->{$key} eq 'SCALAR') {
+            $merged->{$key} = \${$config->{$key}};
+        }
     }
     return $merged;
 }
@@ -466,26 +506,26 @@ sub _merge {
 
 sub dump_hash {
     my $hash = shift;
-    my $out = "{\n";
+    my $out = "  {\n";
 
     while (my($key, $value) = (each %$hash)) {
-	$value = "[ @$value ]" if ref $value eq 'ARRAY';
-	$out .= "    $key => $value\n";
+        $value = "[ @$value ]" if ref $value eq 'ARRAY';
+        $out .= "      $key => $value\n";
     }
-    $out .= "}";
+    $out .= "  }";
 }
 
 sub dump_hash_html {
     my $hash = dump_hash(shift);
     for ($hash) {
-	s/>/&gt;/g;
-	s/\n/<br>/g;
-	s/ /&nbsp;/g;
+        s/>/&gt;/g;
+        s/\n/<br>/g;
+        s/ /&nbsp;/g;
     }
     return $hash;
 }
 
-	
+    
 1;
 
 __END__
@@ -511,12 +551,12 @@ Apache::Template - Apache/mod_perl interface to the Template Toolkit
 
     # now define Apache::Template as a PerlHandler, e.g.
     <Files *.tt2>
-	SetHandler	perl-script
+        SetHandler      perl-script
         PerlHandler     Apache::Template
     </Files>
 
     <Location /tt2>
-	SetHandler	perl-script
+        SetHandler      perl-script
         PerlHandler     Apache::Template
     </Location>
 
@@ -533,9 +573,10 @@ of web content both online and offline in "batch mode".
 This documentation describes the Apache::Template module, concerning
 itself primarily with the Apache/mod_perl configuration options
 (e.g. the httpd.conf side of things) and not going into any great
-depth about the Template Toolkit itself.  The Template Toolkit 
-includes copious documentation which already covers these things
-in great detail.  See L<Template> for further information.
+depth about the Template Toolkit itself.  The Template Toolkit
+includes copious documentation which already covers these things in
+great detail.  See L<Template> and L<Template::Manual> for further
+information.
 
 =head1 CONFIGURATION
 
@@ -549,7 +590,7 @@ e.g.
 
     Apache::Template  =>  Template Toolkit
     --------------------------------------
-    TT2Trim	          TRIM
+    TT2Trim               TRIM
     TT2IncludePath        INCLUDE_PATH
     TT2PostProcess        POST_PROCESS
     ...etc...
@@ -562,8 +603,8 @@ and as such, is more akin to the Template Toolkit TAGS directive.
 
 e.g.
 
-    TT2Tags	    html
-    TT2Tags	    <!--  -->
+    TT2Tags     html
+    TT2Tags     <!--  -->
 
 The configuration directives are listed in full below.  Consult 
 L<Template> for further information on their effects within the 
@@ -577,17 +618,17 @@ Used to set the tags used to indicate Template Toolkit directives
 within source templates.  A single value can be specified to 
 indicate a TAG_STYLE, e.g.
 
-    TT2Tags	    html
+    TT2Tags     html
 
 A pair of values can be used to indicate a START_TAG and END_TAG.
 
-    TT2Tags	    <!--    -->
+    TT2Tags     <!--    -->
 
 Note that, unlike the Template Toolkit START_TAG and END_TAG
 configuration options, these values are automatically escaped to
 remove any special meaning within regular expressions.
 
-    TT2Tags	    [*  *]	# no need to escape [ or *
+    TT2Tags     [*  *]  # no need to escape [ or *
 
 By default, the start and end tags are set to C<[%> and C<%]>
 respectively.  Thus, directives are embedded in the form: 
@@ -599,7 +640,7 @@ Equivalent to the PRE_CHOMP configuration item.  This flag can be set
 to have removed any whitespace preceeding a directive, up to and
 including the preceeding newline.  Default is 'Off'.
 
-    TT2PreChomp	    On
+    TT2PreChomp     On
 
 =item TT2PostChomp
 
@@ -615,7 +656,7 @@ Equivalent to the TRIM configuration item, this flag can be set
 to have all surrounding whitespace stripped from template output.
 Default is 'Off'.
 
-    TT2Trim	    On
+    TT2Trim         On
 
 =item TT2AnyCase
 
@@ -624,7 +665,7 @@ to allow directive keywords to be specified in any case.  By default,
 this setting is 'Off' and all directive (e.g. 'INCLUDE', 'FOREACH', 
 etc.) should be specified in UPPER CASE only.
 
-    TT2AnyCase	    On
+    TT2AnyCase      On
 
 =item TT2Interpolate
 
@@ -659,7 +700,7 @@ configuration extract:
     TT2IncludePath  /usr/local/tt2/templates
 
     <Files *.tt2>
-	SetHandler	perl-script
+    SetHandler  perl-script
         PerlHandler     Apache::Template
     </Files>
 
@@ -676,7 +717,7 @@ Equivalent to the ABSOLUTE configuration item, this flag can be enabled
 to allow templates to be processed (via INCLUDE, PROCESS, etc.) which are
 specified with absolute filenames.
 
-    TT2Absolute	    On
+    TT2Absolute     On
 
 With the flag enabled a template directive of the form:
 
@@ -752,7 +793,7 @@ to specify one or more templates to be process instead of the main
 template.  This can be used to apply a standard "wrapper" around all
 template files processed by the handler.
 
-    TT2Process	    mainpage
+    TT2Process      mainpage
 
 The original template (i.e. whose path is formed from the DocumentRoot
 + URI, as explained in the L<TT2IncludePath|TT2IncludePath> item
@@ -760,7 +801,7 @@ above) is preloaded and available as the 'template' variable.  This a
 typical TT2Process template might look like:
 
     [% PROCESS header %]
-    [% PROCESS $template %]	
+    [% PROCESS $template %] 
     [% PROCESS footer %]
 
 Note the use of the leading '$' on template to defeat the auto-quoting
@@ -768,6 +809,34 @@ mechanism which is applied to INCLUDE, PROCESS, etc., directives.  The
 directive would otherwise by interpreted as:
 
     [% PROCESS "template" %]
+
+=item TT2Wrapper
+
+This is equivalent to the WRAPPER configuration item.  It can be used
+to specify one or more templates to be wrapped around the content 
+generated by processing the main page template.
+
+    TT2Wrapper      sitewrap
+
+The original page template is processed first.  The wrapper template
+is then processed, with the C<content> variable containing the output
+generated by processing the main page template.
+
+Multiple wrapper templates can be specified.  For example, to wrap each
+page in the F<layout> template, and then to wrap that in the F<htmlpage> 
+template, you would write:
+
+    TT2Wrapper htmlpage layout
+
+Or:
+
+    TT2Wrapper htmlpage
+    TT2Wrapper layout
+
+Note that the TT2Wrapper options are specified in "outside-in" order 
+(i.e. the outer wrapper, followed by the inner wrapper).  However, 
+they are processed in reverse "inside-out" order (i.e. the page content,
+followed by the inner wrapper, followed by the outer wrapper).
 
 =item TT2Default
 
@@ -779,7 +848,7 @@ the URI) then the handler will decline the request, resulting in a 404
 - Not Found.  The template specified should exist in one of the 
 directories named by TT2IncludePath.
 
-    TT2Default	    nonsuch
+    TT2Default      nonsuch
 
 =item TT2Error
 
@@ -790,7 +859,31 @@ directories named by TT2IncludePath.  When the error template is
 processed, the 'error' variable will be set to contain the relevant
 error details.
 
-    TT2Error	    error
+    TT2Error        error
+
+=item TT2Variable
+
+This option allows you to define values for simple template variables.
+If you have lots of variables to define then you'll probably want to 
+put them in a config template and pre-process it with TT2PreProcess.
+
+    TT2Variable     version  3.14
+
+=item TT2Constant
+
+This option allows you to define values for constants.  These are
+similar to regular TT variables, but are resolved once when the
+template is compiled.
+
+    TT2Constant     pi  3.14
+
+=item TT2ConstantsNamespace
+
+Constants are accessible via the 'constants' namespace by default (e.g.
+[% constants.pi %].  This option can be used to provide an alternate
+namespace for constants.
+
+    TT2ConstantNamespace  my
 
 =item TT2EvalPerl
 
@@ -800,7 +893,7 @@ within templates.  It is disabled by default and any PERL sections
 encountered will raise 'perl' exceptions with the message 'EVAL_PERL
 not set'.
 
-    TT2EvalPerl	    On
+    TT2EvalPerl     On
 
 =item TT2LoadPerl
 
@@ -808,7 +901,7 @@ This is equivalent to the LOAD_PERL configuration item which allows
 regular Perl modules to be loaded as Template Toolkit plugins via the 
 USE directive.  It is set 'Off' by default.
 
-    TT2LoadPerl	    On
+    TT2LoadPerl     On
 
 =item TT2Recursion
 
@@ -870,7 +963,14 @@ debugging.  The main effect is to raise additional warnings when
 undefined variables are used but is likely to be expanded in a future
 release to provide more extensive debugging capabilities.
 
-    TT2Debug	    On
+    TT2Debug        On
+
+=item TT2Tolerant
+
+This is equivalent to the TOLERANT option which makes the Template
+Toolkit providers tolerant to errors.
+
+    TT2Tolerant     On
 
 =item TT2Headers
 
@@ -878,17 +978,18 @@ Allows you to specify which HTTP headers you want added to the
 response.  Current permitted values are: 'modified' (Last-Modified),
 'length' (Content-Length), 'etag' (E-Tag) or 'all' (all the above).
 
-    TT2Headers	    all
+    TT2Headers      all
 
 =item TT2Params
 
 Allows you to specify which parameters you want defined as template
-variables.  Current permitted values are 'uri', 'env' (hash of 
+variables.  Current permitted values are 'uri', 'env' (hash of
 environment variables), 'params' (hash of CGI parameters), 'pnotes'
-(the request pnotes hash), 'cookies' (hash of cookies), 'uploads'
-(a list of Apache::Upload instances) or 'all' (all of the above).
+(the request pnotes hash), 'cookies' (hash of cookies), 'uploads' (a
+list of Apache::Upload instances), 'request' (the Apache::Request
+object) or 'all' (all of the above).
 
-    TT2Params	    uri env params uploads
+    TT2Params       uri env params uploads request
 
 When set, these values can then be accessed from within any 
 template processed:
@@ -901,7 +1002,7 @@ template processed:
     <table>
     [% FOREACH key = params.keys %]
        <tr>
-	 <td>[% key %]</td>  <td>[% params.$key %]</td>
+     <td>[% key %]</td>  <td>[% params.$key %]</td>
        </tr>
     [% END %]
     </table>
@@ -934,7 +1035,7 @@ in this case as the template variable 'message'.
     use base qw( Template::Service::Apache );
 
     sub params {
-	my $self = shift;
+    my $self = shift;
         my $params = $self->SUPER::params(@_);
         $params->{ message } = 'Hello World';
         return $params;
@@ -948,41 +1049,62 @@ in this case as the template variable 'message'.
 
 =head1 CONFIGURATION MERGING
 
-The Apache::Template module will now correctly merge multiple
-configurations for different virtual server and/or directories.  For
-example:
+The Apache::Template module creates a separate service for each
+virtual server.  Each virtual server can have its own configuration.
+Any globally defined options will be merged with any server-specific 
+ones.  
 
-    PerlModule		Apache::Template
+The following examples illustrates two separate virtual servers being
+configured in one Apache configuration file.
 
-    TT2PostChomp	On
-    TT2IncludePath	/usr/local/tt2/shared
-    
-    <Location /tom>
-	TT2IncludePath	/home/tom/tt2
-	TT2EvalPerl	On
-    </Location>
-	
-    <Location /dick>
-	TT2IncludePath	/home/dick/tt2
-	TT2Trim		On
-	TT2PostChomp	Off
-    </Location>
+    PerlModule	    Apache::Template
+    TT2IncludePath	/usr/local/tt2/templates
+    TT2Params       request params
+    TT2Wrapper      html/page
 
-Here, all URI's starting '/tom' have an effective
-TT2IncludePath of:
+    NameVirtualHost 127.0.0.1
 
-    TT2IncludePath  /usr/local/tt2/shared /home/tom/tt2
+    <VirtualHost 127.0.0.1>
+        ServerName     shoveit
+        SetHandler     perl-script
+        PerlHandler    Apache::Template
+        TT2Wrapper     layout_a
+    </VirtualHost>
 
-and those starting '/dick' have:
+    <VirtualHost 127.0.0.1>
+       ServerName     kickflip
+       SetHandler     perl-script
+       PerlHandler    Apache::Template
+       TT2Wrapper     layout_b
+    </VirtualHost>
 
-    TT2IncludePath  /usr/local/tt2/shared /home/dick/tt2
+In this example, the C<shoveit> virtual host will be configured as if written:
 
-Similarly, different options such as TT2PostChomp, TT2EvalPerl, etc.,
-should enabled/disabled appropriately for different locations.
+    PerlModule	    Apache::Template
+    TT2IncludePath	/usr/local/tt2/templates
+    TT2Params       request params
+    TT2Wrapper      html/page
+    TT2Wrapper      layout_a
+
+The second C<TTWrapper> option (C<layout_a>) is added to the shared
+configuration block.
+
+The C<kickflip> virtual host will be configured as if written:
+
+    PerlModule	    Apache::Template
+    TT2IncludePath	/usr/local/tt2/templates
+    TT2Params       request params
+    TT2Wrapper      html/page
+    TT2Wrapper      layout_b
+
+Here, the C<layout_b> wrapper template is used instead of C<layout_a>.
+
+Apache::Template does not correctly handle different configurations for
+separate directories, location or files within the same virtual server.
 
 =head1 AUTHOR
 
-Andy Wardley E<lt>abw@kfs.orgE<gt>
+Andy Wardley E<lt>abw@wardley.orgE<gt>
 
 This module has been derived in part from the 'Grover' module by
 Darren Chamberlain (darren@boston.com).  Darren kindly donated his
@@ -990,11 +1112,11 @@ code for integration into the Apache::Template module.
 
 =head1 VERSION
 
-This is version 0.06 of the Apache::Template module.
+This is version 0.08 of the Apache::Template module.
 
 =head1 COPYRIGHT
 
-    Copyright (C) 1996-2002 Andy Wardley.  All Rights Reserved.
+    Copyright (C) 1996-2003 Andy Wardley.  All Rights Reserved.
     Copyright (C) 1998-2002 Canon Research Centre Europe Ltd.
 
 This module is free software; you can redistribute it and/or
@@ -1005,3 +1127,10 @@ modify it under the same terms as Perl itself.
 For further information about the Template Toolkit, see L<Template>
 or http://www.template-toolkit.org/
 
+=cut
+
+# Local Variables:
+# mode: perl
+# perl-indent-level: 4
+# indent-tabs-mode: nil
+# End:

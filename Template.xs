@@ -68,11 +68,26 @@ static mod_perl_cmd_info cmd_info_TT2PostProcess = {
 static mod_perl_cmd_info cmd_info_TT2Process = { 
 "Apache::Template::TT2Process", "", 
 };
+static mod_perl_cmd_info cmd_info_TT2Wrapper = { 
+"Apache::Template::TT2Wrapper", "", 
+};
 static mod_perl_cmd_info cmd_info_TT2Default = { 
 "Apache::Template::TT2Default", "", 
 };
 static mod_perl_cmd_info cmd_info_TT2Error = { 
 "Apache::Template::TT2Error", "", 
+};
+static mod_perl_cmd_info cmd_info_TT2Tolerant = { 
+"Apache::Template::TT2Tolerant", "", 
+};
+static mod_perl_cmd_info cmd_info_TT2Variable = { 
+"Apache::Template::TT2Variable", "", 
+};
+static mod_perl_cmd_info cmd_info_TT2Constant = { 
+"Apache::Template::TT2Constant", "", 
+};
+static mod_perl_cmd_info cmd_info_TT2ConstantsNamespace = { 
+"Apache::Template::TT2ConstantsNamespace", "", 
 };
 static mod_perl_cmd_info cmd_info_TT2EvalPerl = { 
 "Apache::Template::TT2EvalPerl", "", 
@@ -116,111 +131,131 @@ static command_rec mod_cmds[] = {
     
     { "TT2Tags", perl_cmd_perl_TAKE12,
       (void*)&cmd_info_TT2Tags,
-      RSRC_CONF, TAKE12, "tag style or start and end tags for template directives" },
+      RSRC_CONF | ACCESS_CONF, TAKE12, "tag style or start and end tags for template directives" },
 
     { "TT2PreChomp", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2PreChomp,
-      RSRC_CONF, FLAG, "flag to remove newline and whitespace before directives" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to remove newline and whitespace before directives" },
 
     { "TT2PostChomp", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2PostChomp,
-      RSRC_CONF, FLAG, "flag to remove newline and whitespace after directives" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to remove newline and whitespace after directives" },
 
     { "TT2Trim", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Trim,
-      RSRC_CONF, FLAG, "flag to trim whitespace surrounding template output" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to trim whitespace surrounding template output" },
 
     { "TT2AnyCase", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2AnyCase,
-      RSRC_CONF, FLAG, "flag to allow directive keywords in any case" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to allow directive keywords in any case" },
 
     { "TT2Interpolate", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Interpolate,
-      RSRC_CONF, FLAG, "flag to interpolate embedded variable references" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to interpolate embedded variable references" },
 
     { "TT2IncludePath", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2IncludePath,
-      RSRC_CONF, ITERATE, "local path(s) containing templates" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "local path(s) containing templates" },
 
     { "TT2Absolute", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Absolute,
-      RSRC_CONF, FLAG, "flag to enable absolute filenames" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to enable absolute filenames" },
 
     { "TT2Relative", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Relative,
-      RSRC_CONF, FLAG, "flag to enable relative filenames" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to enable relative filenames" },
 
     { "TT2Delimiter", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2Delimiter,
-      RSRC_CONF, TAKE1, "alternative directory delimiter" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "alternative directory delimiter" },
 
     { "TT2PreProcess", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2PreProcess,
-      RSRC_CONF, ITERATE, "template(s) to process before each main template" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "template(s) to process before each main template" },
 
     { "TT2PostProcess", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2PostProcess,
-      RSRC_CONF, ITERATE, "template(s) to process after each main template" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "template(s) to process after each main template" },
 
     { "TT2Process", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2Process,
-      RSRC_CONF, ITERATE, "template(s) to process instead of each main template" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "template(s) to process instead of each main template" },
+
+    { "TT2Wrapper", perl_cmd_perl_ITERATE,
+      (void*)&cmd_info_TT2Wrapper,
+      RSRC_CONF | ACCESS_CONF, ITERATE, "template(s) to wrap around each main template" },
 
     { "TT2Default", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2Default,
-      RSRC_CONF, TAKE1, "default template to process when another template is not found" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "default template to process when another template is not found" },
 
     { "TT2Error", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2Error,
-      RSRC_CONF, TAKE1, "template to process when an uncaught error occurs" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "template to process when an uncaught error occurs" },
+
+    { "TT2Tolerant", perl_cmd_perl_FLAG,
+      (void*)&cmd_info_TT2Tolerant,
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to set error tolerance for providers" },
+
+    { "TT2Variable", perl_cmd_perl_TAKE2,
+      (void*)&cmd_info_TT2Variable,
+      RSRC_CONF | ACCESS_CONF, TAKE2, "define a template variable" },
+
+    { "TT2Constant", perl_cmd_perl_TAKE2,
+      (void*)&cmd_info_TT2Constant,
+      RSRC_CONF | ACCESS_CONF, TAKE2, "define a constant variable" },
+
+    { "TT2ConstantsNamespace", perl_cmd_perl_TAKE1,
+      (void*)&cmd_info_TT2ConstantsNamespace,
+      RSRC_CONF | ACCESS_CONF, TAKE1, "define variable namespace for constants" },
 
     { "TT2EvalPerl", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2EvalPerl,
-      RSRC_CONF, FLAG, "flag to allow PERL blocks to be evaluated" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to allow PERL blocks to be evaluated" },
 
     { "TT2LoadPerl", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2LoadPerl,
-      RSRC_CONF, FLAG, "flag to allow regular Perl modules to be loaded as plugins" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to allow regular Perl modules to be loaded as plugins" },
 
     { "TT2Recursion", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Recursion,
-      RSRC_CONF, FLAG, "flag to enable recursion into templates" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to enable recursion into templates" },
 
     { "TT2PluginBase", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2PluginBase,
-      RSRC_CONF, ITERATE, "packages in which to locate for plugins" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "packages in which to locate for plugins" },
 
     { "TT2AutoReset", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2AutoReset,
-      RSRC_CONF, TAKE1, "flag to reset (clear) any BLOCK definitions before processing" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "flag to reset (clear) any BLOCK definitions before processing" },
 
     { "TT2CacheSize", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2CacheSize,
-      RSRC_CONF, TAKE1, "integer limit to the number of compiled templates to cache in memory" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "integer limit to the number of compiled templates to cache in memory" },
 
     { "TT2CompileExt", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2CompileExt,
-      RSRC_CONF, TAKE1, "filename extension for caching compiled templates back to disk" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "filename extension for caching compiled templates back to disk" },
 
     { "TT2CompileDir", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2CompileDir,
-      RSRC_CONF, TAKE1, "path to directory for caching compiled templates back to disk" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "path to directory for caching compiled templates back to disk" },
 
     { "TT2Debug", perl_cmd_perl_FLAG,
       (void*)&cmd_info_TT2Debug,
-      RSRC_CONF, FLAG, "flag to enable debugging" },
+      RSRC_CONF | ACCESS_CONF, FLAG, "flag to enable debugging" },
 
     { "TT2Headers", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2Headers,
-      RSRC_CONF, ITERATE, "list of keywords indicating HTTP headers to add" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "list of keywords indicating HTTP headers to add" },
 
     { "TT2Params", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2Params,
-      RSRC_CONF, ITERATE, "list of keywords indicating parameters to add as template variables" },
+      RSRC_CONF | ACCESS_CONF, ITERATE, "list of keywords indicating parameters to add as template variables" },
 
     { "TT2ServiceModule", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2ServiceModule,
-      RSRC_CONF, TAKE1, "name of class which implements template service module" },
+      RSRC_CONF | ACCESS_CONF, TAKE1, "name of class which implements template service module" },
 
     { NULL }
 };
@@ -231,7 +266,7 @@ module MODULE_VAR_EXPORT XS_Apache__Template = {
     create_dir_config_sv,  /* per-directory config creator */
     perl_perl_merge_dir_config,   /* dir config merger */
     create_srv_config_sv,       /* server config creator */
-    NULL,        /* server config merger */
+    perl_perl_merge_srv_config,        /* server config merger */
     mod_cmds,               /* command table */
     NULL,           /* [7] list of handlers */
     NULL,  /* [2] filename-to-URI translation */

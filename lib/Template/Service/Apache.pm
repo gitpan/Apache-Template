@@ -18,7 +18,7 @@
 # 
 #----------------------------------------------------------------------------
 #
-# $Id: Apache.pm,v 1.2 2001/06/15 14:36:25 abw Exp $
+# $Id: Apache.pm,v 1.3 2002/03/12 14:08:29 abw Exp $
 #
 #============================================================================
 
@@ -35,7 +35,7 @@ use Template::Constants;
 use Template::Exception;
 use Template::Service;
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.3 $ =~ /(\d+)\.(\d+)/);
 $DEBUG   = 0 unless defined $DEBUG;
 
 use Apache::Util qw( escape_uri ht_time );
@@ -62,37 +62,35 @@ sub template {
     return DECLINED unless -f $filename;
     $self->{ TEMPLATE_ERROR } = undef;
 
-# dlc
-#    $self->include_path(_inc_path($filename));
-
     my ($template, $error) = $self->{ ROOT_PROVIDER }->fetch($filename);
     if ($error && $error == &Template::Constants::STATUS_DECLINED) {
-	return DECLINED;
+        return DECLINED;
     }
     elsif ($error) {
-	# save error as exception for params() to add to template vars
-	$self->{ TEMPLATE_ERROR } = Template::Exception->new(
-	    Template::Constants::ERROR_FILE, $template);
-	
-	# if there is an ERROR template defined then we attempt to 
-	# fetch it as a substitute for the original template.  Note 
-	# that we must fetch it from the regular template providers
-	# in the Template::Context because they honour the INCLUDE_PATH 
-	# parameters whereas the ROOT_PROVIDER expects an absolute file
-
-	if ($template = $self->{ ERROR }) {
-	    eval { $template = $self->{ CONTEXT }->template($template) };
-	    if ($@) {
-		$r->log_reason($self->{ TEMPLATE_ERROR } . " / $@", $filename);
-		return SERVER_ERROR;
-	    }
-	}
-	else {
-	    $r->log_reason($template, $filename);
-	    return SERVER_ERROR;
-	}
+        # save error as exception for params() to add to template vars
+        $self->{ TEMPLATE_ERROR } = Template::Exception->new(
+            Template::Constants::ERROR_FILE, $template
+        );
+        
+        # if there is an ERROR template defined then we attempt to 
+        # fetch it as a substitute for the original template.  Note 
+        # that we must fetch it from the regular template providers
+        # in the Template::Context because they honour the INCLUDE_PATH 
+        # parameters whereas the ROOT_PROVIDER expects an absolute file
+        
+        if ($template = $self->{ ERROR }) {
+            eval { $template = $self->{ CONTEXT }->template($template) };
+            if ($@) {
+                $r->log_reason($self->{ TEMPLATE_ERROR } . " / $@", $filename);
+                return SERVER_ERROR;
+            }
+        }
+        else {
+            $r->log_reason($template, $filename);
+            return SERVER_ERROR;
+        }
     }
-
+    
     return $template;
 }
 
@@ -126,16 +124,19 @@ sub params {
     $params->{ params } = { %{ $request->parms() } }
         if $all or $plist->{ params };
 
+    $params->{ request } = $request
+        if $all or $plist->{ request };
+
     if ($all or $plist->{ uploads }) {
-	my @uploads = $request->upload;
-	$params->{ uploads } = \@uploads;
+        my @uploads = $request->upload;
+        $params->{ uploads } = \@uploads;
     }
 
     $params->{ cookies } = { 
-	map { $1 => escape_uri($2) if (/([^=]+)=(.*)/) }
-	grep(!/^$/, split(/;\s*/, $request->header_in('cookie'))),
-    }	if $all or $plist->{ cookies };
-
+        map { $1 => escape_uri($2) if (/([^=]+)=(.*)/) }
+        grep(!/^$/, split(/;\s*/, $request->header_in('cookie'))),
+    } if $all or $plist->{ cookies };
+    
     # add any error raised by main template failure
     $params->{ error } = $self->{ TEMPLATE_ERROR };
 
@@ -156,43 +157,12 @@ sub headers {
 
     $r->content_type('text/html');
     $r->headers_out->add('Last-Modified'  => ht_time($template->modtime()))
-	if $all or $headers->{ modified } and $template;
+        if $all or $headers->{ modified } and $template;
     $r->headers_out->add('Content-Length' => length $$content)
-	if $all or $headers->{ length };
+        if $all or $headers->{ length };
     $r->headers_out->add('E-tag' => sprintf q{"%s"}, md5_hex($$content))
-	if $all or $headers->{ etag };
+        if $all or $headers->{ etag };
     $r->send_http_header;
-}
-
-
-#------------------------------------------------------------------------
-# _inc_path($filename)		## dlc ##
-#
-# This creates a list of directories to be returned to the provider,
-# and specifies how provider searches for included files. This hack
-# makes the provider walk up the directory hierarchy to find the
-# closest occurance of a file to include. This facilitates, for
-# example, putting different headers and footers at various places
-# along the tree.
-#------------------------------------------------------------------------
-
-sub _inc_path ($) {
-    my $f = shift;
-    my %uniq;
-    my @dir;
-    local $" = '/';
-
-    #
-    # This bit of code returns a reference to a list of directories,
-    # sorted in reverse order by length, starting from the directory
-    # in which the translated filename lives, and ending with /.
-    #
-    return [
-	sort { length $b <=> length $a } # reverse sorted by length
-	grep { ++$uniq{$_} == 1        } # (unique directories only)
-	map  { push @dir, $_; "/@dir"; } # a growing list of dirs
-	     ($f =~ m:([^/]+)/:og)       # gathered from the current
-    ];                                   # translated filename
 }
 
 
@@ -215,50 +185,32 @@ sub _init {
 
     # create a parser to be shared by all providers
     $config->{ PARSER } ||= Template::Config->parser($config) 
-	|| return $self->error(Template::Config->error());
+        || return $self->error(Template::Config->error());
 
     # create a provider for the root document
     my $rootcfg = {
-	ABSOLUTE => 1,
-	map { exists $config->{ $_ } ? ($_, $config->{ $_ }) : () }
-	qw( COMPILE_DIR COMPILE_EXT CACHE_SIZE PARSER ),
+        ABSOLUTE => 1,
+        map { exists $config->{ $_ } ? ($_, $config->{ $_ }) : () }
+        qw( COMPILE_DIR COMPILE_EXT CACHE_SIZE PARSER ),
     };
 
     my $rootprov = Template::Config->provider($rootcfg)
-	|| return $self->error(Template::Config->error());
-
-# dlc
-#    my $normprov = Template::Config->provider($config)
-#	|| return $self->error(Template::Config->error());
-#
-#    $config->{ LOAD_TEMPLATES } = $normprov;
+        || return $self->error(Template::Config->error());
 
     # now let the Template::Service superclass initialiser continue
     $self->SUPER::_init($config)
-	|| return undef;
+        || return undef;
 
     # save reference to root document provider
     $self->{ ROOT_PROVIDER } = $rootprov;
 
     # extract other relevant SERVICE_* config items
     foreach (qw( SERVICE_HEADERS SERVICE_PARAMS )) {
-	my $item = $config->{ $_ } || [ ];
-	$self->{ $_ } = { map { $_ => 1 } @$item };
+        my $item = $config->{ $_ } || [ ];
+        $self->{ $_ } = { map { $_ => 1 } @$item };
     }
-
-
-# dlc
-#     # Create an accessor method to update $normprov's include path
-#     unless (defined &include_path) {
-# 	  *include_path = sub {
-# 	      my ($self, $paths) = @_;
-# 	      $rootprov->include_path($paths);
-# 	      $normprov->include_path($paths);
-# 	  }
-#     }
-
-
+    
     return $self;
 }
-	
+    
 1;

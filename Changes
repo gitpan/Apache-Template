@@ -6,12 +6,38 @@
 #   Revision history for the Apache::Template module.
 #
 # AUTHOR
-#   Andy Wardley   <abw@kfs.org>
+#   Andy Wardley   <abw@wardley.org>
 #
 # REVISION
 #   $Id: Changes,v 1.2 2001/06/15 14:36:25 abw Exp $
 #
 #========================================================================
+
+#------------------------------------------------------------------------
+# Version 0.08 - 21st August 2003
+#------------------------------------------------------------------------
+
+* Added TT2Wrapper option.
+
+* Fixed documentation to indicate that virtual hosts can have
+  separate configurations, but not separate directories, locations,
+  files, etc.
+
+
+#------------------------------------------------------------------------
+# Version 0.07 - 13th December 2002               # not released - my bad
+#------------------------------------------------------------------------
+
+* Added 'request' parameter.
+
+* Applied a patch from Rick Myers to add ACCESS_CONF to the req_override
+  options.
+
+* Change handler() method to create a new service for each unique 
+  hostname.  This now handles virtual hosts correctly.
+
+* Added TT2Tolerant, TT2Constant and TT2ConstantsNamespace options.
+
 
 #------------------------------------------------------------------------
 # Version 0.06 - 22nd January 2002
@@ -33,7 +59,7 @@
   request object, but it wasn't easy.  So I've gone with the original 
   behaviour for now until someting better comes along.
 
-* Fixed an "uninitialised value in numeric eq (==) warning in the 
+* Fixed an "uninitialised value in numeric eq (==)" warning in the 
   Template::Server::Apache module.  Thanks to Pierre Phaneuf for 
   reporting the problem.
 
