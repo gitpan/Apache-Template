@@ -16,7 +16,7 @@
 #   modify it under the same terms as Perl itself.
 #
 # REVISION
-#   $Id: Template.pm,v 1.2 2001/06/15 14:36:25 abw Exp $
+#   $Id: Template.pm,v 1.3 2002/01/22 11:02:26 abw Exp $
 #
 #========================================================================
 
@@ -30,7 +30,7 @@ use Apache::ModuleConfig ();
 use Apache::Constants qw( :common );
 use Template::Service::Apache;
 
-$VERSION = '0.03';
+$VERSION = '0.06';
 $ERROR   = '';
 $DEBUG   = 0 unless defined $DEBUG;
 $SERVICE_MODULE = 'Template::Service::Apache' unless defined $SERVICE_MODULE;
@@ -346,7 +346,7 @@ sub TT2Headers($$@) {
 }
 
 #------------------------------------------------------------------------
-# TT2Params uri env pnotes	    # define parameters as template vars
+# TT2Params uri env pnotes uploads   # define parameters as template vars
 #------------------------------------------------------------------------
 
 sub TT2Params($$@) {
@@ -380,6 +380,11 @@ sub SERVER_CREATE {
     return $config;
 }
 
+#
+# This should be SERVER_MERGE, not SERVER_MERGER, but the last time
+# I checked, it didn't work anyway, so I suspect it's a moot point
+#    -- abw Jan 2002
+#
 sub SERVER_MERGER {
     my ($parent, $config) = @_;
     my $merged = _merge($parent, $config);
@@ -416,33 +421,46 @@ sub DIR_MERGE {
 
 
 sub _merge {
-  my ($parent, $config) = @_;
-  my $merged = bless { }, ref($parent);
-  foreach my $key (keys %$parent) {
-    if(!ref $parent->{$key}) {
-      $merged->{$key} = $parent->{$key};
-    } elsif (ref $parent->{$key} eq 'ARRAY') {
-      $merged->{$key} = [ @{$parent->{$key}} ];
-    } elsif (ref $parent->{$key} eq 'HASH') {
-      $merged->{$key} = { %{$parent->{$key}} };
-    } elsif (ref $parent->{$key} eq 'SCALAR') {
-      $merged->{$key} = \${$parent->{$key}};
-    }
-  }
+    my ($parent, $config) = @_;
 
-  foreach my $key (keys %$config) {
-    if(!ref $config->{$key}) {
-      $merged->{$key} = $config->{$key};
-    } elsif (ref $config->{$key} eq 'ARRAY') {
-      push @{$merged->{$key} ||= []}, @{$config->{$key}};
-    } elsif (ref $config->{$key} eq 'HASH') {
-      $merged->{$key} = { %{$merged->{$key}}, %{$config->{$key}} };
-    } elsif (ref $config->{$key} eq 'SCALAR') {
-      $merged->{$key} = \${$config->{$key}};
+    # let's not merge with ourselves.
+    # it's not.. umm.. natural.
+    return $config if $parent eq $config;
+    
+    my $merged = bless { }, ref($parent);
+  
+    foreach my $key (keys %$parent) {
+	if(!ref $parent->{$key}) {
+	    $merged->{$key} = $parent->{$key};
+	} 
+	elsif (ref $parent->{$key} eq 'ARRAY') {
+	    $merged->{$key} = [ @{$parent->{$key}} ];
+	} 
+	elsif (ref $parent->{$key} eq 'HASH') {
+	    $merged->{$key} = { %{$parent->{$key}} };
+	} 
+	elsif (ref $parent->{$key} eq 'SCALAR') {
+	    $merged->{$key} = \${$parent->{$key}};
+	}
     }
-  }
-  return $merged;
+    
+    foreach my $key (keys %$config) {
+	if(!ref $config->{$key}) {
+	    $merged->{$key} = $config->{$key};
+	} 
+	elsif (ref $config->{$key} eq 'ARRAY') {
+	    push @{$merged->{$key} ||= []}, @{$config->{$key}};
+	} 
+	elsif (ref $config->{$key} eq 'HASH') {
+	    $merged->{$key} = { %{$merged->{$key}}, %{$config->{$key}} };
+	} 
+	elsif (ref $config->{$key} eq 'SCALAR') {
+	    $merged->{$key} = \${$config->{$key}};
+	}
+    }
+    return $merged;
 }
+
 
 # debug methods for testing problems with DIR_MERGE, etc.
 
@@ -867,9 +885,10 @@ response.  Current permitted values are: 'modified' (Last-Modified),
 Allows you to specify which parameters you want defined as template
 variables.  Current permitted values are 'uri', 'env' (hash of 
 environment variables), 'params' (hash of CGI parameters), 'pnotes'
-(the request pnotes hash), 'cookies' (hash of cookies) or 'all'.
+(the request pnotes hash), 'cookies' (hash of cookies), 'uploads'
+(a list of Apache::Upload instances) or 'all' (all of the above).
 
-    TT2Params	    uri env params
+    TT2Params	    uri env params uploads
 
 When set, these values can then be accessed from within any 
 template processed:
@@ -971,12 +990,12 @@ code for integration into the Apache::Template module.
 
 =head1 VERSION
 
-This is version 0.3 of the Apache::Template module.
+This is version 0.06 of the Apache::Template module.
 
 =head1 COPYRIGHT
 
-    Copyright (C) 1996-2001 Andy Wardley.  All Rights Reserved.
-    Copyright (C) 1998-2001 Canon Research Centre Europe Ltd.
+    Copyright (C) 1996-2002 Andy Wardley.  All Rights Reserved.
+    Copyright (C) 1998-2002 Canon Research Centre Europe Ltd.
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.

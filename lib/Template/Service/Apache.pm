@@ -38,7 +38,7 @@ use Template::Service;
 $VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
 $DEBUG   = 0 unless defined $DEBUG;
 
-use Apache::Util qw(escape_uri ht_time);
+use Apache::Util qw( escape_uri ht_time );
 use Apache::Constants qw( :common );
 use Apache::Request;
 
@@ -62,8 +62,11 @@ sub template {
     return DECLINED unless -f $filename;
     $self->{ TEMPLATE_ERROR } = undef;
 
+# dlc
+#    $self->include_path(_inc_path($filename));
+
     my ($template, $error) = $self->{ ROOT_PROVIDER }->fetch($filename);
-    if ($error == &Template::Constants::STATUS_DECLINED) {
+    if ($error && $error == &Template::Constants::STATUS_DECLINED) {
 	return DECLINED;
     }
     elsif ($error) {
@@ -102,26 +105,35 @@ sub template {
 #------------------------------------------------------------------------
 
 sub params {
-    my ($self, $r, $params) = @_;
+    my ($self, $request, $params) = @_;
     $params ||= { };
 
     my $plist = $self->{ SERVICE_PARAMS };
     my $all = $plist->{ all };
 
     return $params unless keys %$plist;
-    $r = Apache::Request->new($r);
+    $request = Apache::Request->new($request);
 
-    $params->{ env } = apache_table_to_hash( $r->subprocess_env() )
-	if $all or $plist->{ env };
-    $params->{ uri } = $r->subprocess_env('REDIRECT_URL') || $r->uri()
-	if $all or $plist->{ uri };
-    $params->{ pnotes } = $r->pnotes()
-	if $all or $plist->{ pnotes };
-    $params->{ params } = apache_table_to_hash( $r->parms() )
-	if $all or $plist->{ params };
+    $params->{ env } = { %{ $request->subprocess_env() } }
+        if $all or $plist->{ env };
+
+    $params->{ uri } = $request->subprocess_env('REDIRECT_URL') || $request->uri()
+        if $all or $plist->{ uri };
+
+    $params->{ pnotes } = $request->pnotes()
+        if $all or $plist->{ pnotes };
+
+    $params->{ params } = { %{ $request->parms() } }
+        if $all or $plist->{ params };
+
+    if ($all or $plist->{ uploads }) {
+	my @uploads = $request->upload;
+	$params->{ uploads } = \@uploads;
+    }
+
     $params->{ cookies } = { 
 	map { $1 => escape_uri($2) if (/([^=]+)=(.*)/) }
-	grep(!/^$/, split(/;\s*/, $r->header_in('cookie'))),
+	grep(!/^$/, split(/;\s*/, $request->header_in('cookie'))),
     }	if $all or $plist->{ cookies };
 
     # add any error raised by main template failure
@@ -147,27 +159,41 @@ sub headers {
 	if $all or $headers->{ modified } and $template;
     $r->headers_out->add('Content-Length' => length $$content)
 	if $all or $headers->{ length };
-    $r->headers_out->add('E-tag' => sprintf q{"%s"}, md5_hex($content))
+    $r->headers_out->add('E-tag' => sprintf q{"%s"}, md5_hex($$content))
 	if $all or $headers->{ etag };
     $r->send_http_header;
 }
 
 
 #------------------------------------------------------------------------
-# apache_table_to_hash($table)
+# _inc_path($filename)		## dlc ##
 #
-# Converts an Apache::Table (tied hash) to a regular hash array.  This
-# is necessary because calling for a non-existent element of the table
-# causes Perl to generate a "method not found" error.
-#
-# Needs to be more robust to handle multi-value fields.
+# This creates a list of directories to be returned to the provider,
+# and specifies how provider searches for included files. This hack
+# makes the provider walk up the directory hierarchy to find the
+# closest occurance of a file to include. This facilitates, for
+# example, putting different headers and footers at various places
+# along the tree.
 #------------------------------------------------------------------------
 
-sub apache_table_to_hash {
-    my $table = shift || return { };
-    return { %{ $table } };
-}
+sub _inc_path ($) {
+    my $f = shift;
+    my %uniq;
+    my @dir;
+    local $" = '/';
 
+    #
+    # This bit of code returns a reference to a list of directories,
+    # sorted in reverse order by length, starting from the directory
+    # in which the translated filename lives, and ending with /.
+    #
+    return [
+	sort { length $b <=> length $a } # reverse sorted by length
+	grep { ++$uniq{$_} == 1        } # (unique directories only)
+	map  { push @dir, $_; "/@dir"; } # a growing list of dirs
+	     ($f =~ m:([^/]+)/:og)       # gathered from the current
+    ];                                   # translated filename
+}
 
 
 #------------------------------------------------------------------------
@@ -201,6 +227,12 @@ sub _init {
     my $rootprov = Template::Config->provider($rootcfg)
 	|| return $self->error(Template::Config->error());
 
+# dlc
+#    my $normprov = Template::Config->provider($config)
+#	|| return $self->error(Template::Config->error());
+#
+#    $config->{ LOAD_TEMPLATES } = $normprov;
+
     # now let the Template::Service superclass initialiser continue
     $self->SUPER::_init($config)
 	|| return undef;
@@ -213,6 +245,18 @@ sub _init {
 	my $item = $config->{ $_ } || [ ];
 	$self->{ $_ } = { map { $_ => 1 } @$item };
     }
+
+
+# dlc
+#     # Create an accessor method to update $normprov's include path
+#     unless (defined &include_path) {
+# 	  *include_path = sub {
+# 	      my ($self, $paths) = @_;
+# 	      $rootprov->include_path($paths);
+# 	      $normprov->include_path($paths);
+# 	  }
+#     }
+
 
     return $self;
 }

@@ -10,7 +10,67 @@
 #
 # REVISION
 #   $Id: Changes,v 1.2 2001/06/15 14:36:25 abw Exp $
+#
 #========================================================================
+
+#------------------------------------------------------------------------
+# Version 0.06 - 22nd January 2002
+#------------------------------------------------------------------------
+
+* Bumped version number so that PAUSE will allow me to upload it.
+  The first attempt to upload 0.05 failed but left a CPAN database 
+  entry, preventing me from uploading 0.05 again.
+
+
+#------------------------------------------------------------------------
+# Version 0.05 - 22nd January 2002
+#------------------------------------------------------------------------
+
+* Backed out Darren's first patch listed below in 0.04 because it changes
+  the nature of, and interface to the various parameters (e.g. env('foo') 
+  vs env.foo).  I tried to enclose these items in object wrappers so that
+  they can look like hashes but propagate changes back up to the Apache
+  request object, but it wasn't easy.  So I've gone with the original 
+  behaviour for now until someting better comes along.
+
+* Fixed an "uninitialised value in numeric eq (==) warning in the 
+  Template::Server::Apache module.  Thanks to Pierre Phaneuf for 
+  reporting the problem.
+
+* Applied a patch from Darren Chamberlain which adds the 'uploads' option
+  to TT2Params for handling file uploads.
+
+* Applied a patch from Rick Myers to prevent the Apache::Template::_merge
+  method from merging the same configuration hash together.
+
+
+#------------------------------------------------------------------------
+# Version 0.04 - 15th June 2001
+#------------------------------------------------------------------------
+
+* Applied 2 patches from Darren Chamberlain:
+
+  * Form parameters, cookies, pnotes, and the like are closures
+    rather than data structures; updates to these from the
+    templates themselves are reflected in the request_rec and the
+    associated Perl objects. As a consequence, these are called
+    as from the templates as [% params('id') %] rather than
+    [% params.id %]. Setting these works as you would expect:
+    [% params("Fruit", "Lemon") %] sets fruit=lemon.
+
+    ### NOTE: the above change has been backed out in 0.05 ###
+
+  * I fixed a small bug that resulted from the E-tag patch I submitted
+    for Apache::Template 0.2.  My patch was md5_hex'ing the reference to
+    the content, not the content itself... this is included in the
+    attached diff.
+
+  (NOTE: that was my fault - I lost his patch and tried, but failed,
+  to recreate it from memory - D'Oh!)
+
+* Applied a patch from Mark Fowler to add the correct pre-reqs for 
+  Apache::Request and Apache::ModuleConfig to Makefile.PL.
+
 
 #------------------------------------------------------------------------
 # Version 0.03 - 15th June 2001
@@ -36,6 +96,7 @@
 
 * Added the E-tag header, thanks to a patch from Darren Chamberlain.
 
+
 #------------------------------------------------------------------------
 # Version 0.02 - 16th Feb 2001
 #------------------------------------------------------------------------
@@ -44,6 +105,7 @@
 
 * Integrated various bits of code from the "Grover" module and 
   Apache::Template 0.1, as donated by Darren Chamberlain.
+
 
 #------------------------------------------------------------------------
 # Version 0.01
