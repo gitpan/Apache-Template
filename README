@@ -1,0 +1,105 @@
+NAME
+    Apache::Template - Apache/mod_perl interface to the Template Toolkit
+
+SYNOPSIS
+        # add the following to your httpd.conf
+        PerlModule          Apache::Template
+
+        # set various configuration options, e.g.
+        TT2Trim             On
+        TT2PostChomp        On
+        TT2EvalPerl         On
+        TT2IncludePath      /usr/local/tt2/templates
+        TT2IncludePath      /home/abw/tt2/lib
+        TT2PreProcess       config header
+        TT2PostProcess      footer
+        TT2Error            error
+
+        # now define Apache::Template as a PerlHandler, e.g.
+        <Files *.tt2>
+            SetHandler      perl-script
+            PerlHandler     Apache::Template
+        </Files>
+
+        <Location /tt2>
+            SetHandler      perl-script
+            PerlHandler     Apache::Template
+        </Location>
+
+DESCRIPTION
+    The Apache::Template module provides a simple interface to the Template
+    Toolkit from Apache/mod_perl. The Template Toolkit is a fast, powerful
+    and extensible template processing system written in Perl. It implements
+    a general purpose template language which allows you to clearly separate
+    application logic, data and presentation elements. It boasts numerous
+    features to facilitate in the generation of web content both online and
+    offline in "batch mode".
+
+    The documentation (see the Apache::Template manpage) describes the
+    Apache::Template module, concerning itself primarily with the
+    Apache/mod_perl configuration options (e.g. the httpd.conf side of
+    things) and not going into any great depth about the Template Toolkit
+    itself. The Template Toolkit includes copious documentation which
+    already covers these things in great detail. See the Template manpage
+    for further information.
+
+OBTAINING AND INSTALLING Apache::Template
+    The Apache::Template module requires the Template Toolkit version 2.00.
+    This can be downloaded from any CPAN site:
+
+        http://www.cpan.org/modules/by-module/Template/
+
+    This should be installed according to the instructions in the README
+    file that accompanies it.
+
+    The latest release version of Apache::Template can be downloaded from
+    any CPAN site:
+
+        http://www.cpan.org/modules/by-module/Apache/
+
+    Apache::Template is distributed as a gzipped tar archive file:
+
+        Apache-Template-<version>.tar.gz
+
+    where <version> represents the current version number, e.g. 0.02
+
+    To install the Apache::Template module, unpack the distribution archive
+    to create an installation directory. Something like this:
+
+        tar zxf Apache-Template-0.02.tar.gz
+    or
+        gunzip Apache-Template-0.02.tar.gz
+        tar xf Apache-Template-0.02.tar
+
+    You can then 'cd' into the directory created,
+
+        cd Apache-Template-2.00
+
+    and perform the usual Perl installation procedure:
+
+        perl Makefile.PL
+        make
+        make test
+        make install
+
+AUTHOR
+    Andy Wardley <abw@kfs.org>
+
+    This module has been derived in part from the 'Grover' module by Darren
+    Chamberlain (darren@boston.com). Darren kindly donated his code for
+    integration into the Apache::Template module.
+
+VERSION
+    This is version 0.2 of the Apache::Template module.
+
+COPYRIGHT
+        Copyright (C) 1996-2001 Andy Wardley.  All Rights Reserved.
+        Copyright (C) 1998-2001 Canon Research Centre Europe Ltd.
+
+    This module is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
+
+SEE ALSO
+    For further information about the Template Toolkit, see the Template
+    manpage or http://www.template-toolkit.org/
+

@@ -1,0 +1,31 @@
+#========================================================================
+#
+# Changes 
+#
+# DESCRIPTION
+#   Revision history for the Apache::Template module.
+#
+# AUTHOR
+#   Andy Wardley   <abw@kfs.org>
+#
+# REVISION
+#   $Id$
+#========================================================================
+
+#------------------------------------------------------------------------
+# Version 0.02 - 16th Feb 2001
+#------------------------------------------------------------------------
+
+* First official public alpha release
+
+* Integrated various bits of code from the "Grover" module and 
+  Apache::Template 0.1, as donated by Darren Chamberlain.
+
+#------------------------------------------------------------------------
+# Version 0.01
+#------------------------------------------------------------------------
+
+* Unofficial pre-release as part of the Template Toolkit 2.01 snapshot.
+
+
+
