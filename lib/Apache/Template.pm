@@ -16,7 +16,7 @@
 #   modify it under the same terms as Perl itself.
 #
 # REVISION
-#   $Id$
+#   $Id: Template.pm,v 1.2 2001/06/15 14:36:25 abw Exp $
 #
 #========================================================================
 
@@ -30,7 +30,7 @@ use Apache::ModuleConfig ();
 use Apache::Constants qw( :common );
 use Template::Service::Apache;
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 $ERROR   = '';
 $DEBUG   = 0 unless defined $DEBUG;
 $SERVICE_MODULE = 'Template::Service::Apache' unless defined $SERVICE_MODULE;
@@ -63,7 +63,7 @@ sub handler {
     my $r = shift;
 
     $SERVICE ||= do {
-	my $cfg = Apache::ModuleConfig->get($r);
+	my $cfg = Apache::ModuleConfig->get($r) || { };
 
 	# hack to work around minor bug in Template::Parser from 
 	# TT v 2.00 which doesn't recognise a blessed hash as
@@ -72,9 +72,8 @@ sub handler {
 
 	# instantiate new service module
 	my $module = $cfg->{ SERVICE_MODULE } || $SERVICE_MODULE;
-	$module->new($cfg) || do {
-	    $r->log_reason($Template::Service::Apache::ERROR,
-			   $r->filename());
+	(eval "require $module" && $module->new($cfg)) || do {
+	    $r->log_reason($module->error(), $r->filename());
 	    return SERVER_ERROR;
 	};
     };
@@ -363,38 +362,28 @@ sub TT2Params($$@) {
 sub TT2ServiceModule($$$) {
     my ($cfg, $parms, $module) = @_;
     $cfg->{ SERVICE_MODULE } = $module;
-    warn "set SERVICE_MODULE => $module\n";
 }
 
 
 
 #========================================================================
 # Configuration creators/mergers
-#
-# NOTE: these seem to be broken in the version of Apache I'm using
-# (will report back once I've got enough tuits to install and test
-# with the latest version of Apache/mod_perl).  The DIR_MERGE sub seems
-# to get called twice on each request, similary for SERVER_MERGE which
-# gets called twice for each virtual host.  For now, I've disabled
-# them and set all config options to have a req_override of RSRC_CONF.
-# As and when this problem gets fixed, I'd like to make them RSRC_CONF
-# | ACCESS_CONF to allow different locations, directories, etc., to
-# support different TT2 configurations.
 #========================================================================
 
 my $dir_counter = 1;	    # used for debugging/testing of problems
 my $srv_counter = 1;	    # with SERVER_MERGE and DIR_MERGE
 
-sub not_used_SERVER_CREATE {
+sub SERVER_CREATE {
     my $class  = shift;
     my $config = bless { }, $class;
     warn "SERVER_CREATE($class) => $config\n" if $DEBUG;
     return $config;
 }
 
-sub not_used_SERVER_MERGER {
+sub SERVER_MERGER {
     my ($parent, $config) = @_;
-    my $merged = bless { %$parent, %$config }, ref($parent);
+    my $merged = _merge($parent, $config);
+    
     if ($DEBUG) {
 	$merged->{ counter } = $srv_counter;
 	warn "\nSERVER_MERGE #" . $srv_counter++ . "\n" 
@@ -405,16 +394,16 @@ sub not_used_SERVER_MERGER {
     return $merged;
 }
 
-sub not_used_DIR_CREATE {
+sub DIR_CREATE {
     my $class  = shift;
     my $config = bless { }, $class;
     warn "DIR_CREATE($class) => $config\n" if $DEBUG;
     return $config;
 }
 
-sub not_used_DIR_MERGE {
+sub DIR_MERGE {
     my ($parent, $config) = @_;
-    my $merged = bless { %$parent, %$config }, ref($parent);
+    my $merged = _merge($parent, $config);
     if ($DEBUG) {
 	$merged->{ counter } = $dir_counter;
 	warn "\nDIR_MERGE #" . $dir_counter++ . "\n" 
@@ -425,6 +414,35 @@ sub not_used_DIR_MERGE {
     return $merged;
 }
 
+
+sub _merge {
+  my ($parent, $config) = @_;
+  my $merged = bless { }, ref($parent);
+  foreach my $key (keys %$parent) {
+    if(!ref $parent->{$key}) {
+      $merged->{$key} = $parent->{$key};
+    } elsif (ref $parent->{$key} eq 'ARRAY') {
+      $merged->{$key} = [ @{$parent->{$key}} ];
+    } elsif (ref $parent->{$key} eq 'HASH') {
+      $merged->{$key} = { %{$parent->{$key}} };
+    } elsif (ref $parent->{$key} eq 'SCALAR') {
+      $merged->{$key} = \${$parent->{$key}};
+    }
+  }
+
+  foreach my $key (keys %$config) {
+    if(!ref $config->{$key}) {
+      $merged->{$key} = $config->{$key};
+    } elsif (ref $config->{$key} eq 'ARRAY') {
+      push @{$merged->{$key} ||= []}, @{$config->{$key}};
+    } elsif (ref $config->{$key} eq 'HASH') {
+      $merged->{$key} = { %{$merged->{$key}}, %{$config->{$key}} };
+    } elsif (ref $config->{$key} eq 'SCALAR') {
+      $merged->{$key} = \${$config->{$key}};
+    }
+  }
+  return $merged;
+}
 
 # debug methods for testing problems with DIR_MERGE, etc.
 
@@ -840,7 +858,7 @@ release to provide more extensive debugging capabilities.
 
 Allows you to specify which HTTP headers you want added to the 
 response.  Current permitted values are: 'modified' (Last-Modified),
-'length' (Content-Length) or 'all' (all the above).
+'length' (Content-Length), 'etag' (E-Tag) or 'all' (all the above).
 
     TT2Headers	    all
 
@@ -909,14 +927,11 @@ in this case as the template variable 'message'.
 
 =back
 
-=head1 BUGS, LIMITATIONS AND FUTURE ENHANCEMENTS
+=head1 CONFIGURATION MERGING
 
-=head2 Multiple Concurrent Configurations
-
-The biggest current limitation is that it's not possible to run multiple
-Template Toolkit configurations within the same Apache/mod_perl server 
-process.  For example, it would be nice to be able to do something like
-this:
+The Apache::Template module will now correctly merge multiple
+configurations for different virtual server and/or directories.  For
+example:
 
     PerlModule		Apache::Template
 
@@ -934,57 +949,17 @@ this:
 	TT2PostChomp	Off
     </Location>
 
-Here, all URI's starting '/tom' should have an effective
+Here, all URI's starting '/tom' have an effective
 TT2IncludePath of:
 
     TT2IncludePath  /usr/local/tt2/shared /home/tom/tt2
 
-and those starting '/dick' should be:
+and those starting '/dick' have:
 
     TT2IncludePath  /usr/local/tt2/shared /home/dick/tt2
 
 Similarly, different options such as TT2PostChomp, TT2EvalPerl, etc.,
 should enabled/disabled appropriately for different locations.
-
-This should be possible using the DIR_MERGE facility, and also
-SERVER_MERGE for handling multiple virtual hosts.  It should also be
-relatively easy to generate the required Template Toolkit
-configurations to support this (having multiple Template::Providers
-chained together in different ways would be the obvious way to
-implement different TT2IncludePath settings, for example).
-
-Alas, my extended experimentation with DIR_MERGE and SERVER_MERGE 
-left my brain scrambled.  It seems to be the case that they both
-get called twice at each merge point instead of just once.  I have 
-no idea why this is the case and it seems to be contrary to the 
-advertised behaviour.  After spending far too long trying to figure
-it out, I gave up and decided to leave that feature for a later
-version.  
-
-Any insight into this matter that anyone can provide would be 
-gratefully accepted.  I've left the code intact, above.  Simply
-remove the 'not_used_' prefixes from the DIR/SERVER_CREATE/MERGE
-subs above and rebuild to see the problem in action.
-
-=head2 Headers and Parameters
-
-I'm in two minds about whether it's better to use full names to 
-specify TT2Headers, e.g.
-
-    TT2Headers	Content-Length Last-Modified
-
-or short keyword forms for brevity:
-
-    TT2Header	length modified
-
-The latter is less typing, but the former are more "offical".  In
-an ideal module, we'd do a regex match on /(Content-)?Length/i,
-for example, but at present we just stuff 'length' in a hash and 
-don't bother.
-
-Oh, and I need to add E-Tag as well.  That was in Darren's Grover
-module, but I forgot to add it here.  Darn, I know I'm being lazy
-because I could have added it in the time it took me to type this.
 
 =head1 AUTHOR
 
@@ -996,7 +971,7 @@ code for integration into the Apache::Template module.
 
 =head1 VERSION
 
-This is version 0.2 of the Apache::Template module.
+This is version 0.3 of the Apache::Template module.
 
 =head1 COPYRIGHT
 

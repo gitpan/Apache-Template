@@ -229,7 +229,7 @@ module MODULE_VAR_EXPORT XS_Apache__Template = {
     STANDARD_MODULE_STUFF,
     NULL,               /* module initializer */
     create_dir_config_sv,  /* per-directory config creator */
-    NULL,   /* dir config merger */
+    perl_perl_merge_dir_config,   /* dir config merger */
     create_srv_config_sv,       /* server config creator */
     NULL,        /* server config merger */
     mod_cmds,               /* command table */
@@ -247,6 +247,25 @@ module MODULE_VAR_EXPORT XS_Apache__Template = {
     NULL,   /* [1] post read_request handling */
 };
 
+#define this_module "Apache/Template.pm"
+
+static void remove_module_cleanup(void *data)
+{
+    if (find_linked_module("Apache::Template")) {
+        /* need to remove the module so module index is reset */
+        remove_module(&XS_Apache__Template);
+    }
+    if (data) {
+        /* make sure BOOT section is re-run on restarts */
+        (void)hv_delete(GvHV(incgv), this_module,
+                        strlen(this_module), G_DISCARD);
+         if (dowarn) {
+             /* avoid subroutine redefined warnings */
+             perl_clear_symtab(gv_stashpv("Apache::Template", FALSE));
+         }
+    }
+}
+
 MODULE = Apache::Template		PACKAGE = Apache::Template
 
 PROTOTYPES: DISABLE
@@ -255,4 +274,11 @@ BOOT:
     XS_Apache__Template.name = "Apache::Template";
     add_module(&XS_Apache__Template);
     stash_mod_pointer("Apache::Template", &XS_Apache__Template);
+    register_cleanup(perl_get_startup_pool(), (void *)1,
+                     remove_module_cleanup, null_cleanup);
 
+void
+END()
+
+    CODE:
+    remove_module_cleanup(NULL);

@@ -167,7 +167,8 @@ WriteMakefile(
     'VERSION_FROM' => 'lib/Apache/Template.pm',
     'PMLIBDIRS'	   => [ 'lib' ],
     'INC'	   => Apache::src->new->inc,
-    'PREREQ_PM'    => { Template => 2.00 },
+    'PREREQ_PM'    => { Template => 2.00,
+                        Digest::MD5 => 2.09 },
 );
 
 

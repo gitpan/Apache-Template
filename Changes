@@ -9,8 +9,32 @@
 #   Andy Wardley   <abw@kfs.org>
 #
 # REVISION
-#   $Id$
+#   $Id: Changes,v 1.2 2001/06/15 14:36:25 abw Exp $
 #========================================================================
+
+#------------------------------------------------------------------------
+# Version 0.03 - 15th June 2001
+#------------------------------------------------------------------------
+
+* Fixed a bug at the point where a service module was instantiated which 
+  hard-coded the error code as Template::Service::Apache::ERROR.  Now 
+  calls $module->error().
+
+* Removed a stray debugging message which reported installation of a 
+  custom SERVICE_HANDLER.
+
+* Applied a patch from Mark Fowler <mark@profero.com> to fix a bug caused
+  when you don't have any configuration options specified in httpd.conf.
+
+* Applied another patch from Mark to load the service module (which may
+  not be the regular one) via require.
+
+* Applied a patch from Tony Payne <anthonyp@petsmart.com> to correctly
+  implement the DIR_CREATE, DIR_MERGE, SERVER_CREATE and SERVER_MERGE
+  facilities to support multiple configurations.  He reports that these
+  now appear to work OK on later versions of mod_perl.
+
+* Added the E-tag header, thanks to a patch from Darren Chamberlain.
 
 #------------------------------------------------------------------------
 # Version 0.02 - 16th Feb 2001

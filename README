@@ -44,8 +44,8 @@ DESCRIPTION
     for further information.
 
 OBTAINING AND INSTALLING Apache::Template
-    The Apache::Template module requires the Template Toolkit version 2.00.
-    This can be downloaded from any CPAN site:
+    The Apache::Template module requires the Template Toolkit version 2.00
+    or later. This can be downloaded from any CPAN site:
 
         http://www.cpan.org/modules/by-module/Template/
 
@@ -61,19 +61,19 @@ OBTAINING AND INSTALLING Apache::Template
 
         Apache-Template-<version>.tar.gz
 
-    where <version> represents the current version number, e.g. 0.02
+    where <version> represents the current version number, e.g. 0.03.
 
     To install the Apache::Template module, unpack the distribution archive
     to create an installation directory. Something like this:
 
-        tar zxf Apache-Template-0.02.tar.gz
+        tar zxf Apache-Template-0.03.tar.gz
     or
-        gunzip Apache-Template-0.02.tar.gz
-        tar xf Apache-Template-0.02.tar
+        gunzip Apache-Template-0.03.tar.gz
+        tar xf Apache-Template-0.03.tar
 
     You can then 'cd' into the directory created,
 
-        cd Apache-Template-2.00
+        cd Apache-Template-0.03
 
     and perform the usual Perl installation procedure:
 
@@ -90,7 +90,7 @@ AUTHOR
     integration into the Apache::Template module.
 
 VERSION
-    This is version 0.2 of the Apache::Template module.
+    This is version 0.03 of the Apache::Template module.
 
 COPYRIGHT
         Copyright (C) 1996-2001 Andy Wardley.  All Rights Reserved.

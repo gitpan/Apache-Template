@@ -18,7 +18,7 @@
 # 
 #----------------------------------------------------------------------------
 #
-# $Id$
+# $Id: Apache.pm,v 1.2 2001/06/15 14:36:25 abw Exp $
 #
 #============================================================================
 
@@ -29,12 +29,13 @@ require 5.004;
 use strict;
 use vars qw( $VERSION $DEBUG $ERROR );
 use base qw( Template::Service );
+use Digest::MD5 qw( md5_hex );
 use Template::Config;
 use Template::Constants;
 use Template::Exception;
 use Template::Service;
 
-$VERSION = sprintf("%d.%02d", q$Revision$ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.2 $ =~ /(\d+)\.(\d+)/);
 $DEBUG   = 0 unless defined $DEBUG;
 
 use Apache::Util qw(escape_uri ht_time);
@@ -107,7 +108,7 @@ sub params {
     my $plist = $self->{ SERVICE_PARAMS };
     my $all = $plist->{ all };
 
-    return unless keys %$plist;
+    return $params unless keys %$plist;
     $r = Apache::Request->new($r);
 
     $params->{ env } = apache_table_to_hash( $r->subprocess_env() )
@@ -146,6 +147,8 @@ sub headers {
 	if $all or $headers->{ modified } and $template;
     $r->headers_out->add('Content-Length' => length $$content)
 	if $all or $headers->{ length };
+    $r->headers_out->add('E-tag' => sprintf q{"%s"}, md5_hex($content))
+	if $all or $headers->{ etag };
     $r->send_http_header;
 }
 
