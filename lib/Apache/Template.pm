@@ -9,14 +9,14 @@
 #   Andy Wardley <abw@wardley.org>
 #
 # COPYRIGHT
-#   Copyright (C) 1996-2003 Andy Wardley.  All Rights Reserved.
+#   Copyright (C) 1996-2004 Andy Wardley.  All Rights Reserved.
 #   Copyright (C) 1998-2002 Canon Research Centre Europe Ltd.
 #
 #   This module is free software; you can redistribute it and/or
 #   modify it under the same terms as Perl itself.
 #
 # REVISION
-#   $Id: Template.pm,v 1.4 2002/03/12 14:10:25 abw Exp $
+#   $Id: Template.pm,v 1.5 2004/04/27 09:11:31 abw Exp $
 #
 #========================================================================
 
@@ -31,7 +31,7 @@ use Apache::Constants qw( :common );
 use Template::Service::Apache;
 use Template::Config;
 
-$VERSION = '0.08';
+$VERSION = '0.09';
 $ERROR   = '';
 $DEBUG   = 0 unless defined $DEBUG;
 $Template::Config::SERVICE = 'Template::Service::Apache';
@@ -373,6 +373,15 @@ sub TT2Params($$@) {
 }
 
 #------------------------------------------------------------------------
+# TT2ContentType   text/xml                         # custom content type
+#------------------------------------------------------------------------
+
+sub TT2ContentType($$$) {
+    my ($cfg, $parms, $type) = @_;
+    $cfg->{ CONTENT_TYPE } = $type;
+}
+
+#------------------------------------------------------------------------
 # TT2ServiceModule   My::Service::Class     # custom service module
 #------------------------------------------------------------------------
 
@@ -577,6 +586,37 @@ depth about the Template Toolkit itself.  The Template Toolkit
 includes copious documentation which already covers these things in
 great detail.  See L<Template> and L<Template::Manual> for further
 information.
+
+=head1 UPGRADING FROM EARLIER VERSIONS OF Apache::Template
+
+If you are upgrading from an earlier version of Apache::Template
+(e.g. 0.08 or earlier) then you should pay particular attention to
+the changes in the TT2Headers option in version 0.09.
+
+The Content-Type header can now be controlled by the TT2Headers option
+(to enable or disable it) and by the TT2ContentType option (to set
+a specific Content-Type).
+
+If you don't specify any TT2Headers option, then it will default to 
+sending the Content-Type header only, emulating the existing behaviour
+of Apache::Template 0.08 and earlier.  Thus the default is equivalent 
+to the following:
+
+    TT2Headers      type              # default 
+
+If you do specify a TT2Headers option, then you must now explicitly
+add the 'type' value to have Apache::Template send the Content-Type
+header.
+
+    TT2Headers      type length
+
+If you don't specify 'type' in the TT2Headers option then
+Apache::Template will not add a Content-Type header.  
+
+The default value for Content-Type is 'text/html' but can now be changed
+using the TT2ContentType option.
+
+    TT2ContentType  text/xml
 
 =head1 CONFIGURATION
 
@@ -974,11 +1014,34 @@ Toolkit providers tolerant to errors.
 
 =item TT2Headers
 
-Allows you to specify which HTTP headers you want added to the 
-response.  Current permitted values are: 'modified' (Last-Modified),
-'length' (Content-Length), 'etag' (E-Tag) or 'all' (all the above).
+Allows you to specify which HTTP headers you want added to the
+response.  Current permitted values are: 'type' (Content-Type),
+'length' (Content-Length), 'modified' (Last-Modified) and 'etag'
+(E-Tag).
+
+    TT2Headers      type length
+
+It can also be set to 'all' to enable all headers.
 
     TT2Headers      all
+
+If the TT2Headers option is not specified, then it default to 'type',
+sending the Content-Type header set to the value of TT2ContentType
+or 'text/html' if undefined. 
+
+    TT2Headers      type    # default - same as no TT2Headers option
+
+The option can be set to 'none' to disable all headers, including the
+Content-Type.
+
+    TT2Headers      none
+
+=item TT2ContentType
+
+This option can be used to set a Content-Type other than the default
+value of 'text/html'.
+
+    TT2ContentType   text/xml
 
 =item TT2Params
 
@@ -1006,6 +1069,7 @@ template processed:
        </tr>
     [% END %]
     </table>
+
 
 =item TT2ServiceModule
 
@@ -1104,19 +1168,18 @@ separate directories, location or files within the same virtual server.
 
 =head1 AUTHOR
 
-Andy Wardley E<lt>abw@wardley.orgE<gt>
-
-This module has been derived in part from the 'Grover' module by
-Darren Chamberlain (darren@boston.com).  Darren kindly donated his
-code for integration into the Apache::Template module.
+Andy Wardley E<lt>abw@wardley.orgE<gt>, with contributions from Darren
+Chamberlain (who wrote the 'Grover' module which was integrated into
+Apache::Template), Mark Fowler, Randal Schwartz, Tony Payne and Rick
+Myers.
 
 =head1 VERSION
 
-This is version 0.08 of the Apache::Template module.
+This is version 0.09 of the Apache::Template module.
 
 =head1 COPYRIGHT
 
-    Copyright (C) 1996-2003 Andy Wardley.  All Rights Reserved.
+    Copyright (C) 1996-2004 Andy Wardley.  All Rights Reserved.
     Copyright (C) 1998-2002 Canon Research Centre Europe Ltd.
 
 This module is free software; you can redistribute it and/or

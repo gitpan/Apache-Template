@@ -122,6 +122,9 @@ static mod_perl_cmd_info cmd_info_TT2Headers = {
 static mod_perl_cmd_info cmd_info_TT2Params = { 
 "Apache::Template::TT2Params", "", 
 };
+static mod_perl_cmd_info cmd_info_TT2ContentType = { 
+"Apache::Template::TT2ContentType", "", 
+};
 static mod_perl_cmd_info cmd_info_TT2ServiceModule = { 
 "Apache::Template::TT2ServiceModule", "", 
 };
@@ -252,6 +255,10 @@ static command_rec mod_cmds[] = {
     { "TT2Params", perl_cmd_perl_ITERATE,
       (void*)&cmd_info_TT2Params,
       RSRC_CONF | ACCESS_CONF, ITERATE, "list of keywords indicating parameters to add as template variables" },
+
+    { "TT2ContentType", perl_cmd_perl_TAKE1,
+      (void*)&cmd_info_TT2ContentType,
+      RSRC_CONF | ACCESS_CONF, TAKE1, "content type of generated response (default: text/html)" },
 
     { "TT2ServiceModule", perl_cmd_perl_TAKE1,
       (void*)&cmd_info_TT2ServiceModule,

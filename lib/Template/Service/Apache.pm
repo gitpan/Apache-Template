@@ -7,10 +7,10 @@
 #   specific to the Apache/mod_perl environment.
 #
 # AUTHOR
-#   Andy Wardley   <abw@kfs.org>
+#   Andy Wardley   <abw@wardley.org>
 #
 # COPYRIGHT
-#   Copyright (C) 1996-2001 Andy Wardley.  All Rights Reserved.
+#   Copyright (C) 1996-2004 Andy Wardley.  All Rights Reserved.
 #   Copyright (C) 1998-2001 Canon Research Centre Europe Ltd.
 #
 #   This module is free software; you can redistribute it and/or
@@ -18,7 +18,7 @@
 # 
 #----------------------------------------------------------------------------
 #
-# $Id: Apache.pm,v 1.3 2002/03/12 14:08:29 abw Exp $
+# $Id: Apache.pm,v 1.4 2004/04/27 09:11:31 abw Exp $
 #
 #============================================================================
 
@@ -27,7 +27,7 @@ package Template::Service::Apache;
 require 5.004;
 
 use strict;
-use vars qw( $VERSION $DEBUG $ERROR );
+use vars qw( $VERSION $DEBUG $ERROR $CONTENT_TYPE );
 use base qw( Template::Service );
 use Digest::MD5 qw( md5_hex );
 use Template::Config;
@@ -35,8 +35,9 @@ use Template::Constants;
 use Template::Exception;
 use Template::Service;
 
-$VERSION = sprintf("%d.%02d", q$Revision: 1.3 $ =~ /(\d+)\.(\d+)/);
+$VERSION = sprintf("%d.%02d", q$Revision: 1.4 $ =~ /(\d+)\.(\d+)/);
 $DEBUG   = 0 unless defined $DEBUG;
+$CONTENT_TYPE = 'text/html';
 
 use Apache::Util qw( escape_uri ht_time );
 use Apache::Constants qw( :common );
@@ -155,11 +156,12 @@ sub headers {
     my $headers = $self->{ SERVICE_HEADERS };
     my $all = $headers->{ all };
 
-    $r->content_type('text/html');
-    $r->headers_out->add('Last-Modified'  => ht_time($template->modtime()))
-        if $all or $headers->{ modified } and $template;
+    $r->content_type($self->{ CONTENT_TYPE })
+        if $all or $headers->{ type };
     $r->headers_out->add('Content-Length' => length $$content)
         if $all or $headers->{ length };
+    $r->headers_out->add('Last-Modified'  => ht_time($template->modtime()))
+        if $all or $headers->{ modified } and $template;
     $r->headers_out->add('E-tag' => sprintf q{"%s"}, md5_hex($$content))
         if $all or $headers->{ etag };
     $r->send_http_header;
@@ -204,11 +206,24 @@ sub _init {
     # save reference to root document provider
     $self->{ ROOT_PROVIDER } = $rootprov;
 
+    # determine content type or use default
+    $self->{ CONTENT_TYPE } = $config->{ CONTENT_TYPE } || $CONTENT_TYPE;
+
+
+    # if TT2Headers not explicitly defined then we default it to 
+    # just send the Content-Type, for the simple cases and backwards
+    # compatibility with earlier versions (0.08 and earlier) where
+    # the Content-Type was always sent regardless
+
+    $config->{ SERVICE_HEADERS } = ['type']
+        unless $config->{ SERVICE_HEADERS };
+
     # extract other relevant SERVICE_* config items
     foreach (qw( SERVICE_HEADERS SERVICE_PARAMS )) {
         my $item = $config->{ $_ } || [ ];
         $self->{ $_ } = { map { $_ => 1 } @$item };
     }
+    
     
     return $self;
 }

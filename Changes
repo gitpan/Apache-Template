@@ -9,9 +9,25 @@
 #   Andy Wardley   <abw@wardley.org>
 #
 # REVISION
-#   $Id: Changes,v 1.2 2001/06/15 14:36:25 abw Exp $
+#   $Id: Changes,v 1.4 2004/04/27 09:14:10 abw Exp $
 #
 #========================================================================
+
+#------------------------------------------------------------------------
+# Version 0.09 - 27th April 2004
+#------------------------------------------------------------------------
+
+* Added 'type' to list of TT2Headers.  If no TT2Headers are specified,
+  then it defaults to just 'type', for backwards compatability with 
+  earlier versions.  However, if you do have TT2Headers specified, then
+  you will need to explicitly add 'type' to the list if you want it sent.
+    
+    TT2Headers      type length 
+
+* Added TT2ContentType parameter to set a Content-Type other than 
+  text/html
+
+    TT2ContentType  text/xml
 
 #------------------------------------------------------------------------
 # Version 0.08 - 21st August 2003
